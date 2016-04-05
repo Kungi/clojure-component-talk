@@ -1,0 +1,126 @@
+#+TITLE: Component
+#+SUBTITLE: Dependency Management in Clojure
+#+SUBTITLe: Clojure User Group Rhein Neckar
+#+AUTHOR: Andreas Klein
+#+DATE: 05.04.2016
+
+* Reloaded Workflow 1/2
+
+  - Beim Entwickeln und Code neuladen
+    soll der State der Applikation
+    immer aktuell sein
+  - Die Applikation soll sich komplett
+    neu starten lassen ohne, dass die
+    REPL neu gestartet wird
+
+* Reloaded Workflow 2/2
+
+  Konsequenzen:
+
+  => Die Applikation selbst muss
+     ein "Objekt" werden
+
+  => Es müssen flüchtige Instanzen
+     der Applikation erzeugt werden
+
+  (Docker in der REPL)
+
+* Voraussetzungen
+
+  - Kein global State
+  - Durchdachtes Management von Resourcen
+    - Freigeben von Resourcen beim Neustart
+      der Applikation
+  - Es muss eine Systemkonfiguration
+    existieren
+
+* Implementierung - System Constructor
+  - System Konstruktor erzeugt eine
+    System Map
+    #+begin_src clojure
+    {:db <...>
+     :web-server <...>
+     :amqp <...>}
+    #+end_src
+  - Trennung der Erzeugung des Systems
+    vom Starten des Systems
+
+* Implementierung - Start / Stop System
+
+  - Start Funktion bekommt System Map und
+    startet das System
+  - Hierbei werden alle Seiteneffekte
+    ausgeführt wie z.B.
+    - Datenbankverbindungspool anlegen
+    - Websverer starten
+    - Logdatei initialisieren
+    - ...
+  - Stop ist analog und gibt Resourcen frei
+
+* Component Library
+
+  [com.stuartsierra/component "0.3.1"]
+  Managed lifecycle of stateful objects
+
+* Lifecycle Protokoll
+
+  - Jeder Eintrag in System Map muss das
+    Lifecycle Protokoll implementieren
+  #+begin_src clojure
+  (defprotocol Lifecycle
+    (start [component])
+    (stop [component]))
+  #+end_src
+  - Komponenten sind Records
+
+* Beispiel System Map
+  #+begin_src clojure
+  (defn create-system []
+   (component/system-map
+    :db (create-db-component)
+    :metrics (component/using
+              (create-metrics-component)
+              [:db])
+    :server (component/using
+             (create-server-component)
+             [:db :metrics]))))
+  #+end_src
+
+* Dependency Resolution
+
+  - Component benutzt topological sort zum
+    Ordnen der Dependencies
+  - https://github.com/stuartsierra/dependency
+
+* Dependency Injection
+
+  Wie wird auf den System State zugegriffen?
+
+  a) Jede Funktion, die den State benutzt,
+     bekommt die System Map als Parameter
+
+  b) Es gibt dynamische Vars die
+     System Map / Komponenten enthalten
+     (Analog zu Ring Middlewares)
+
+  c) Eine Kombination aus Beidem
+
+* user.clj
+
+  - Es bietet sich beim Arbeiten mit Component
+    an ein user.clj file zu erstellen
+  - Dieses enthält Funktionen zum Starten und
+    Stoppen des Systems
+
+  - Empfehlung: reloaded.repl verwenden
+    https://github.com/weavejester/reloaded.repl
+
+* Production Demo
+
+  Demo Time
+
+* Referenzen
+
+ - http://thinkrelevance.com/blog/2013/06/04/clojure-workflow-reloaded
+ - https://github.com/stuartsierra/component
+ - https://github.com/weavejester/reloaded.repl
